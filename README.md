@@ -1,6 +1,9 @@
 初始化 electron-react 项目
 
-本文参考：[Building a React Desktop App with Electron](https://blog.bitsrc.io/building-an-electron-app-with-electron-react-boilerplate-c7ef8d010a91)
+本文参考：
+
+- [超详实！带你一步步搭建Electron10+React16+Antd4架构工程](https://mp.weixin.qq.com/s/24SiiGZQSlFQKkYMLTX9dg) 付费文章，公众号打开查看全文
+- [Building a React Desktop App with Electron](https://blog.bitsrc.io/building-an-electron-app-with-electron-react-boilerplate-c7ef8d010a91)
 
 ## 项目搭建
 
