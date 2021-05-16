@@ -1,70 +1,218 @@
-# Getting Started with Create React App
+初始化 electron-react 项目
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+本文参考：[Building a React Desktop App with Electron](https://blog.bitsrc.io/building-an-electron-app-with-electron-react-boilerplate-c7ef8d010a91)
 
-## Available Scripts
+## 项目搭建
 
-In the project directory, you can run:
+- 使用 [create-react-app](https://www.html.cn/create-react-app/docs/getting-started/) 搭建基本框架
+- 安装路由等：
 
-### `yarn start`
+```bash
+yarn add react-dom
+yarn add react-router-dom
+yarn add antd
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- 删除不必要的文件
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 添加 `Electron` 等核心依赖
 
-### `yarn test`
+- 配置镜像：
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```
+yarn config set ELECTRON_MIRROR https://npm.taobao.org/mirrors/electron/
+```
 
-### `yarn build`
+- 安装其他依赖：
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+yarn add electron electron-builder wait-on
+yarn add electron-is-dev concurrently
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- 进行配置：`package.json` 配置
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```json
+"homepage": "./",
+"main": "./src/main.js",
+"scripts": {
+  "ebuild": "npm run build && node_modules/.bin/build",
+  "dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\""
+}
+```
 
-### `yarn eject`
+## 启动测试：
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```
+yarn dev
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 功能开发：利用 nodejs 读取目录文件名
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+- 更改 `src/App.jsx` 文件
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+```jsx
+import React, { useState, useEffect } from 'react'
+import { Button, List } from 'antd'
 
-## Learn More
+const { ipcRenderer } = window.require('electron')
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+function App() {
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+  const [fileList, setList] = useState([])
 
-### Code Splitting
+  const onReady = () => {
+    ipcRenderer.on('readDir-reply', (event, result) => {
+      if (!result.cnaceled) {
+        setList(result.fileList)
+      } else {
+        console.log('取消选择操作')
+      }
+    })
+  }
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+  const readDir = () => {
+    ipcRenderer.send('readDir', '传递给主进程的参数')
+  }
 
-### Analyzing the Bundle Size
+  useEffect(() => {
+    onReady()
+  }, [])
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+  const listProps = {
+    header: <div>文件列表</div>,
+    borderd: true,
+    style:{ padding: '0 20px' },
+    dataSource: fileList,
+    renderItem: (item) => <List.Item>{item}</List.Item>
+  }
 
-### Making a Progressive Web App
+  return (
+    <div className="App">
+      <h1>electron-cra</h1>
+      <Button type="primary"  onClick={readDir}>Button</Button>
+      <List {...listProps} />
+    </div>
+  );
+}
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+export default App;
+```
 
-### Advanced Configuration
+- 新建 `src/read-dir.js` 文件
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```js
+const { ipcMain, dialog } = require('electron')
 
-### Deployment
+const fs = require('fs')
+const path = require('path')
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+ipcMain.on('readDir', (event, args) => {
+  dialog.showOpenDialog(({
+    // 只允许选择文件夹
+    properties: ['openDirectory']
+  }))
+  .then((result) => {
+    if (!result.canceled) {
+      console.log('result: ', result);
+      result.fileList = loadFilesInDir(result.filePaths[0])
+      console.log('result.fileList: ', result.fileList);
+      event.reply('readDir-reply', result)
+    }
+  })
+})
 
-### `yarn build` fails to minify
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+function loadFilesInDir(dir) {
+  let fileList = []
+  // 读取目录下全部文件及子目录
+  let files = fs.readdirSync(dir)
+  for (let i=0; i<files.length; i++) {
+    let filePath = path.join(dir, files[i])
+    // 获取信息
+    let fileData = fs.statSync(filePath)
+    // 判断是文件还是目录
+    if (fileData.isFile()) {
+      // 若是文件，记录下来
+      fileList.push(filePath)
+    }  else {
+      // 若是目录，递归遍历，拼接结果
+      fileList = fileList.concat(loadFilesInDir(filePath))
+    }
+  }
+  return fileList
+}
+
+```
+
+- 新建 `main.js` 文件
+
+```js
+const { app, BrowserWindow } = require('electron');
+const isDev = require('electron-is-dev');
+const path = require('path');
+
+let mainWindow;
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        show: false,
+        webPreferences: {
+            nodeIntegration: true, //是否使用node
+            enableRemoteModule: true, //是否有子页面
+            contextIsolation: false, //是否禁止node
+            nodeIntegrationInSubFrames: true, //否允许在子页面(iframe)或子窗口(child window)中集成Node.js
+        },
+    });
+    const startURL = isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../build/index.html')}`;
+
+    mainWindow.loadURL(startURL);
+
+    mainWindow.once('ready-to-show', () => mainWindow.show());
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+}
+app.on('ready', createWindow);
+
+
+require('./read-dir')
+
+```
+ 
+## 完成，测试
+
+```bash
+yarn dev
+```
+
+启动后，即可点击按钮，选择对应目录，查看效果
+
+
+## 小结
+
+这里踩了个坑：若需要使用 Nodejs，需要配置：
+
+```js
+mainWindow = new BrowserWindow({
+  width: 800,
+  height: 600,
+  show: false,
+  // 里面的代码是核心配置
+  webPreferences: {
+    nodeIntegration: true, //是否使用node
+    enableRemoteModule: true, //是否有子页面
+    contextIsolation: false, //是否禁止node
+    nodeIntegrationInSubFrames: true, //否允许在子页面(iframe)或子窗口(child window)中集成Node.js
+  },
+})
+```
+
+**参考资料**
+
+- [基于 react + electron 开发及结合爬虫的应用实践](https://juejin.cn/post/6934660187668086791)
+- [Building a React Desktop App with Electron](https://blog.bitsrc.io/building-an-electron-app-with-electron-react-boilerplate-c7ef8d010a91)
+- [electron-react-boilerplate](https://github.com/fliegwerk/electron-react-boilerplate)
+- [Today-wallpapers](https://github.com/blazer233/Today-wallpapers)
