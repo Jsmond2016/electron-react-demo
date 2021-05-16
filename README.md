@@ -210,6 +210,13 @@ mainWindow = new BrowserWindow({
 })
 ```
 
+## TODOS
+
+- [ ] Vue + Electron 开发
+- [ ] Vite + Vue/React 开发
+- [ ] 项目实战和实现
+
+
 **参考资料**
 
 - [基于 react + electron 开发及结合爬虫的应用实践](https://juejin.cn/post/6934660187668086791)
